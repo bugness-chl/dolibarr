@@ -93,6 +93,9 @@ class FactureRec extends CommonInvoice
 
 	public $suspended;			// status
 
+	public $error;
+	public $errors = array();
+
 	const STATUS_NOTSUSPENDED = 0;
 	const STATUS_SUSPENDED = 1;
 
@@ -1007,7 +1010,7 @@ class FactureRec extends CommonInvoice
 		global $conf, $langs, $db, $user, $hookmanager;
 
 
-		$error=0;
+		$errorTotal=0;
 		$nb_create=0;
 
 		// Load translation files required by the page
@@ -1057,6 +1060,7 @@ class FactureRec extends CommonInvoice
 				$db->begin();
 
 				$invoiceidgenerated = 0;
+				$error = 0;
 
 				$facture = null;
 				$facturerec = new FactureRec($db);
@@ -1081,7 +1085,7 @@ class FactureRec extends CommonInvoice
 					$invoiceidgenerated = $facture->create($user);
 					if ($invoiceidgenerated <= 0)
 					{
-						$this->errors = $facture->errors;
+						$this->errors = array_merge($this->errors, $facture->errors);
 						$this->error = $facture->error;
 						$error++;
 					}
@@ -1090,7 +1094,7 @@ class FactureRec extends CommonInvoice
 						$result = $facture->validate($user);
 						if ($result <= 0)
 						{
-							$this->errors = $facture->errors;
+							$this->errors = array_merge($this->errors, $facture->errors);
 							$this->error = $facture->error;
 							$error++;
 						}
@@ -1102,7 +1106,7 @@ class FactureRec extends CommonInvoice
 						$result = $facture->generateDocument($facturerec->modelpdf, $langs);
 						if ($result <= 0)
 						{
-							$this->errors = $facture->errors;
+							$this->errors = array_merge($this->errors, $facture->errors);
 							$this->error = $facture->error;
 							$error++;
 						}
@@ -1131,7 +1135,8 @@ class FactureRec extends CommonInvoice
 				$parameters = array(
 					'cpt'        => $i,
 					'total'      => $num,
-					'errorCount' => $error,
+					'error'      => $error,
+					'errorTotal' => $errorTotal + $error,
 					'invoiceidgenerated' => $invoiceidgenerated,
 					'facturerec' => $facturerec,	// it's an object which PHP passes by "reference", so modifiable by hooks.
 					'this'       => $this,		// it's an object which PHP passes by "reference", so modifiable by hooks.
@@ -1139,6 +1144,7 @@ class FactureRec extends CommonInvoice
 				$reshook = $hookmanager->executeHooks('generatedInvoice', $parameters, $facture);  // note: $facture can be modified by hooks (warning: $facture can be null)
 
 				$i++;
+				$errorTotal += $error;
 			}
 
 			$conf->entity = $saventity;      // Restore entity context
@@ -1147,7 +1153,7 @@ class FactureRec extends CommonInvoice
 
 		$this->output=trim($this->output);
 
-		return $error?$error:0;
+		return $errorTotal;
 	}
 
 	/**
